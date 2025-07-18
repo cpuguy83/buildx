@@ -19,7 +19,6 @@
     "include": {
       "type": "array",
       "items": {
-        "type": "object",
         "$ref": "#/definitions/include"
       },
       "description": "compose sub-projects to be included."
@@ -115,7 +114,7 @@
                 "pull": {"type": ["boolean", "string"]},
                 "target": {"type": "string"},
                 "shm_size": {"type": ["integer", "string"]},
-                "extra_hosts": {"$ref": "#/definitions/list_or_dict"},
+                "extra_hosts": {"$ref": "#/definitions/extra_hosts"},
                 "isolation": {"type": "string"},
                 "privileged": {"type": ["boolean", "string"]},
                 "secrets": {"$ref": "#/definitions/service_config_or_secret"},
@@ -155,8 +154,8 @@
           },
           "additionalProperties": false
         },
-        "cap_add": {"type": "array", "items": {"type": "string"}},
-        "cap_drop": {"type": "array", "items": {"type": "string"}},
+        "cap_add": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "cap_drop": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
         "cgroup": {"type": "string", "enum": ["host", "private"]},
         "cgroup_parent": {"type": "string"},
         "command": {"$ref": "#/definitions/command"},
@@ -216,9 +215,27 @@
           ]
         },
         "device_cgroup_rules": {"$ref": "#/definitions/list_of_strings"},
-        "devices": {"type": "array", "items": {"type": "string"}},
+        "devices": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {"type": "string"},
+              {
+                "type": "object",
+                "required": ["source"],
+                "properties": {
+                  "source": {"type": "string"},
+                  "target": {"type": "string"},
+                  "permissions": {"type": "string"}
+                },
+                "additionalProperties": false,
+                "patternProperties": {"^x-": {}}
+              }
+            ]
+          }
+        },
         "dns": {"$ref": "#/definitions/string_or_list"},
-        "dns_opt": {"type": "array","items": {"type": "string"}},
+        "dns_opt": {"type": "array","items": {"type": "string"}, "uniqueItems": true},
         "dns_search": {"$ref": "#/definitions/string_or_list"},
         "domainname": {"type": "string"},
         "entrypoint": {"$ref": "#/definitions/command"},
@@ -230,7 +247,8 @@
           "items": {
             "type": ["string", "number"],
             "format": "expose"
-          }
+          },
+          "uniqueItems": true
         },
         "extends": {
           "oneOf": [
@@ -247,13 +265,15 @@
             }
           ]
         },
-        "external_links": {"type": "array", "items": {"type": "string"}},
-        "extra_hosts": {"$ref": "#/definitions/list_or_dict"},
+        "external_links": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "extra_hosts": {"$ref": "#/definitions/extra_hosts"},
+        "gpus": {"$ref": "#/definitions/gpus"},
         "group_add": {
           "type": "array",
           "items": {
             "type": ["string", "number"]
-          }
+          },
+          "uniqueItems": true
         },
         "healthcheck": {"$ref": "#/definitions/healthcheck"},
         "hostname": {"type": "string"},
@@ -262,7 +282,7 @@
         "ipc": {"type": "string"},
         "isolation": {"type": "string"},
         "labels": {"$ref": "#/definitions/list_or_dict"},
-        "links": {"type": "array", "items": {"type": "string"}},
+        "links": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
         "logging": {
           "type": "object",
 
@@ -348,8 +368,11 @@
                 "patternProperties": {"^x-": {}}
               }
             ]
-          }
+          },
+          "uniqueItems": true
         },
+        "post_start": {"type": "array", "items": {"$ref": "#/definitions/service_hook"}},
+        "pre_stop": {"type": "array", "items": {"$ref": "#/definitions/service_hook"}},
         "privileged": {"type": ["boolean", "string"]},
         "profiles": {"$ref": "#/definitions/list_of_strings"},
         "pull_policy": {"type": "string", "enum": [
@@ -363,7 +386,7 @@
         "scale": {
           "type": ["integer", "string"]
         },
-        "security_opt": {"type": "array", "items": {"type": "string"}},
+        "security_opt": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
         "shm_size": {"type": ["number", "string"]},
         "secrets": {"$ref": "#/definitions/service_config_or_secret"},
         "sysctls": {"$ref": "#/definitions/list_or_dict"},
@@ -396,6 +419,7 @@
                     "properties": {
                       "propagation": {"type": "string"},
                       "create_host_path": {"type": ["boolean", "string"]},
+                      "recursive": {"type": "string", "enum": ["enabled", "disabled", "writable", "readonly"]},
                       "selinux": {"type": "string", "enum": ["z", "Z"]}
                     },
                     "additionalProperties": false,
@@ -429,11 +453,13 @@
                 "patternProperties": {"^x-": {}}
               }
             ]
-          }
+          },
+          "uniqueItems": true
         },
         "volumes_from": {
           "type": "array",
-          "items": {"type": "string"}
+          "items": {"type": "string"},
+          "uniqueItems": true
         },
         "working_dir": {"type": "string"}
       },
@@ -475,12 +501,14 @@
               "path": {"type": "string"},
               "action": {"type": "string", "enum": ["rebuild", "sync", "sync+restart"]},
               "target": {"type": "string"}
-            }
-          },
-          "additionalProperties": false,
-          "patternProperties": {"^x-": {}}
+            },
+            "additionalProperties": false,
+            "patternProperties": {"^x-": {}}
+          }
         }
-      }
+      },
+      "additionalProperties": false,
+      "patternProperties": {"^x-": {}}
     },
     "deployment": {
       "id": "#/definitions/deployment",
@@ -607,6 +635,26 @@
 
     "devices": {
       "id": "#/definitions/devices",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "capabilities": {"$ref": "#/definitions/list_of_strings"},
+          "count": {"type": ["string", "integer"]},
+          "device_ids": {"$ref": "#/definitions/list_of_strings"},
+          "driver":{"type": "string"},
+          "options":{"$ref": "#/definitions/list_or_dict"}
+        },
+        "additionalProperties": false,
+        "patternProperties": {"^x-": {}},
+        "required": [
+          "capabilities"
+        ]
+      }
+    },
+
+    "gpus": {
+      "id": "#/definitions/gpus",
       "type": "array",
       "items": {
         "type": "object",
@@ -789,6 +837,20 @@
       ]
     },
 
+    "service_hook": {
+      "id": "#/definitions/service_hook",
+      "type": "object",
+      "properties": {
+        "command": {"$ref": "#/definitions/command"},
+        "user": {"type": "string"},
+        "privileged": {"type": ["boolean", "string"]},
+        "working_dir": {"type": "string"},
+        "environment": {"$ref": "#/definitions/list_or_dict"}
+      },
+      "additionalProperties": false,
+      "patternProperties": {"^x-": {}}
+    },
+
     "env_file": {
       "oneOf": [
         {"type": "string"},
@@ -802,6 +864,9 @@
                 "additionalProperties": false,
                 "properties": {
                   "path": {
+                    "type": "string"
+                  },
+                  "format": {
                     "type": "string"
                   },
                   "required": {
@@ -828,7 +893,8 @@
 
     "list_of_strings": {
       "type": "array",
-      "items": {"type": "string"}
+      "items": {"type": "string"},
+      "uniqueItems": true
     },
 
     "list_or_dict": {
@@ -842,7 +908,23 @@
           },
           "additionalProperties": false
         },
-        {"type": "array", "items": {"type": "string"}}
+        {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      ]
+    },
+
+    "extra_hosts": {
+      "oneOf": [
+        {
+          "type": "object",
+          "patternProperties": {
+            ".+": {
+              "type": ["string", "array"]
+            },
+            "uniqueItems": false
+          },
+          "additionalProperties": false
+        },
+        {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
       ]
     },
 
